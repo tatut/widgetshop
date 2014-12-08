@@ -2,7 +2,10 @@
 
 Simple ClojureScript example for an online shop UI using Reagent.
 
-
+What's not included: 
+- validation 
+- server communication
+- 
 
 ## Running locally ##
 
