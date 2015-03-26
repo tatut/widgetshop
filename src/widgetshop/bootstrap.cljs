@@ -9,7 +9,7 @@
                       :tabs "nav-tabs"
                       "nav-tabs")
         tabs (partition 2 alternating-title-and-component)]
-    (fn []
+    (fn [config & alternating-title-and-component]
       (let [[active-tab-title active-component] (nth tabs @active)]
         [:span 
          [:ul.nav {:class style-class}

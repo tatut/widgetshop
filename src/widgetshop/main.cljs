@@ -13,6 +13,7 @@
           :description "Why wait? Make your own earthquakes! Loads of fun."
           :manufacturer "Acme Inc"
           :reviews []
+          
           }
          
          {:id :fine-leather-jackets
@@ -161,6 +162,7 @@
                      (reset! new-review nil))}
      "Submit review"]
     ]])
+
 
 (defn product-reviews-view []
   (let [new-review (atom nil)]

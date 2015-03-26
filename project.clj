@@ -1,11 +1,12 @@
 (defproject widgetshop "0.1.0-SNAPSHOT"
   :description "Reagent demo of a simple widget shop"
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [org.clojure/clojurescript "0.0-2371"]
-                 [figwheel "0.1.5-SNAPSHOT"]
-                 [reagent "0.4.3"]]
-  :plugins [[lein-cljsbuild "1.0.3"]
-            [lein-figwheel "0.1.5-SNAPSHOT"]]
+                 [org.clojure/clojurescript "0.0-3115"]
+                 [figwheel "0.2.5"]
+                 [reagent "0.5.0"]
+                 [com.andrewmcveigh/cljs-time "0.3.2"]]
+  :plugins [[lein-cljsbuild "1.0.4"]
+            [lein-figwheel "0.2.5"]]
 
   :cljsbuild {:builds [{:id "dev"
                         :source-paths ["src"];; "example"]
