@@ -11,5 +11,9 @@ What's not included:
 
 Clone this repo and run "lein figwheel dev" and open the URL printed on the console in a web browser.
 
+Then open in local browser:
+http://localhost:3449/  (for the basic widgetshop product gallery sample)
+http://localhost:3449/sales.html  (for the sales data listing and visualization sample)
+
 
 
