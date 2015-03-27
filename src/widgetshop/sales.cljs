@@ -13,8 +13,36 @@
 ;; This atom holds the complete sales data in vector form
 (defonce sales-data (atom nil))
 
+;; Distinct categories of all products
+(defonce categories (reaction (frequencies
+                               (map (comp :category :product)
+                                    @sales-data))))
+
+(defonce selected-category (atom nil))
+
+(def filtered-sales-data
+  (reaction (let [all-data @sales-data
+                  category @selected-category]
+              (if (empty? category)
+                all-data
+                (into []
+                      (filter #(= (:category (:product %)) category))
+                      all-data)))))
+
 (defn sale-total [s]
   (* (:qty s) (:price (:product s))))
+
+
+(def sales-by-month
+  (reaction (let [sales (group-by (fn [s]
+                                    (fmt/year-and-month (:date s)))
+                                  @filtered-sales-data)]
+              (into []
+                    (map (juxt first
+                               #(reduce + (map sale-total (second %)))))
+                    (sort-by first (seq sales)))))) 
+              
+
 
 ;; Define the sales data columns from left to right,
 ;; each item has keys :label, :get  and optional :fmt to
@@ -48,6 +76,7 @@
              (* (:qty %) (:price (:product %)))) :fmt fmt/euros}
    ])
 
+   
 
 (defn sales-row
   "Component for a single sales row."
@@ -57,6 +86,7 @@
    (for [{:keys [label get fmt]} columns]
      ^{:key label}
      [:td ((or fmt str) (get item))])])
+
   
 (defn sales-listing
   "Component that lists all sales data."
@@ -98,13 +128,40 @@
           (for [item data] ;; generate this for each item
             (sales-row columns item))]))]]])
 
+(defn category-selection []
+  [:select {:value @selected-category
+            :on-change #(reset! selected-category (-> % .-target .-value))}
+   [:option {:value ""} "All categories"]
+   (for [c (keys @categories)]
+     ^{:key c}
+     [:option {:value c} c])])
+
 (defn sales
   "Main component of our sales page"
   []
   [:span.salesPage
-   [sales-listing sales-columns @sales-data]
+   [category-selection]
+   [sales-listing sales-columns @filtered-sales-data]
    [:div.salesCount
-     (count @sales-data) " sales"]])
+     (count @filtered-sales-data) " sales of " (count @sales-data) " shown."]
+   
+   [vis/bars {:width 500 :height 150
+              :ticks [["50k" 50000]
+                      ["25k" 25000]
+                      ["10k" 10000]
+                      ["1k" 1000]
+                      ["500" 500]]
+                       
+              :color-fn (fn [[_ value]]
+                          (cond
+                           (> value 10000) "green"
+                           (> value 1000) "#FFCC00"
+                           :default "red"))}
+    @sales-by-month]
+   (when (empty? @selected-category)
+     [vis/pie {:width 200 :height 200 :radius 70}
+      @categories])
+   ])
 
 (defn generate-dummy-sales []
   (reset! sales-data
