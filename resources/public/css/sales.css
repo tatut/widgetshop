@@ -1,0 +1,17 @@
+table.sales-data, table.sales-head {
+    table-layout: fixed;
+}
+
+table.sales-head {
+    margin-bottom: 0px;
+    border-bottom: none;
+}
+
+th {
+    padding: 0 !important;
+}
+
+div.sales-data-container  {
+    max-height: 300px;
+    overflow: scroll;
+}
