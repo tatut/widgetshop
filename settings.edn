@@ -1,0 +1,6 @@
+{:database {:classname "org.postgresql.Driver"
+            :subprotocol "postgresql"
+            :subname "//localhost:5432/widgetshop"
+            :user "widgetshop"}
+ :server {:port 3000}
+ }
