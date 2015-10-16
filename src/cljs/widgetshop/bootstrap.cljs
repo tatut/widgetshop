@@ -15,6 +15,7 @@
          [:ul.nav {:class style-class}
           (map-indexed 
            (fn [i [title]]
+             ^{:key i}
              [:li {:role "presentation" 
                    :class (when (= active-tab-title title)
                             "active")}

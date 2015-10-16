@@ -5,7 +5,9 @@
                  [figwheel "0.4.0"]
                  [reagent "0.5.1"]
                  [com.andrewmcveigh/cljs-time "0.3.14"]
-
+                 [cljs-ajax "0.5.0"]
+                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]
+                 
                  [http-kit "2.1.18"]
                  [compojure "1.4.0"]
                  [org.postgresql/postgresql "9.4-1204-jdbc42"]
@@ -31,6 +33,7 @@
   ;; Server side source 
   :source-paths ["src/clj"]
   :main widgetshop.main
+  :repl-options {:port 4005}
   
   ;; Make alias "lein build" run the full cljs+clj compilation and produce an uberjar
   :aliases {"build" ["do" "clean," "deps," "compile," "cljsbuild" "once" "prod," "uberjar"]}

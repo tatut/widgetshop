@@ -75,3 +75,19 @@ VALUES ('Acme earthquake pills', 'Why wait? Make your own earthquakes! Loads of 
        ('Illudium Q-36 explosive space modulator', 'Planets obstructing YOUR view of Venus? Destroy them with the new explosive space modulator!', 20000, (SELECT id FROM manufacturer WHERE name='Transgalactic Tools Ltd'))
        ;
        
+INSERT INTO category (name)
+VALUES ('Clothing'), ('Toys'), ('Drugs'), ('Tools');
+
+INSERT INTO product_category (product, category)
+VALUES (1,3), (2,1), (3, 2), (4, 4);
+     
+INSERT INTO customer (email,name)
+VALUES ('guybrush@pirate.example.com', 'Guybrush Threepwood'),
+       ('haggis@example.com', 'Haggis McMutton');
+       
+INSERT INTO product_review (product,customer, stars, review)
+VALUES (1, 1, 5, 'Totally makes me look like an actual pirate!'),
+       (1, 2, 1, 'Doesn''t work as expected');
+
+
+       

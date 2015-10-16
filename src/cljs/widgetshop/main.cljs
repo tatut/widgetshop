@@ -1,50 +1,15 @@
 (ns widgetshop.main
   (:require [reagent.core :as reagent :refer [atom]]
             [widgetshop.bootstrap :as bs]
-            [figwheel.client :as fw :include-macros true]))
+            [widgetshop.api :as api]
+            [cljs.core.async :refer [<! >!]])
+  (:require-macros [reagent.ratom :refer [reaction run!]]
+                   [cljs.core.async.macros :refer [go]]))
 
-;; Define some test data our app will be working with
-;; in a real app you would load over the net.
-(def products 
-  (atom [{:id :acme-pills 
-          :name "Acme earthquake pills"
-          :img "pills.jpg"
-          :price {:amount 3999 :currency :eur} 
-          :description "Why wait? Make your own earthquakes! Loads of fun."
-          :manufacturer "Acme Inc"
-          :reviews []
-          
-          }
-         
-         {:id :fine-leather-jackets
-          :name "Fine leather jacket"
-          :img "leatherjacket.jpg"
-          :manufacturer "Threepwood Pirate Clothing Inc"
-          :price {:amount 245 :currency :pieces-of-eight}
-          :description "I'm selling these fine leather jackets"
-          :reviews [{:name "Guybrush Threepwood"
-                     :email "guybrush@example.com"
-                     :stars 5
-                     :review "Totally makes me look like an actual pirate!"} 
-                    {:name "Haggis McMutton"
-                     :email "ilovehaggis@example.com"
-                     :stars 1
-                     :review "Doesn't work as expected."}]}
-         
-         {:id :log
-          :name "Log from Blammo!"
-          :img "log.jpg"
-          :price {:amount 1495 :currency :eur}
-          :description "It's log, log, It's big, it's heavy, it's wood. It's log, log, it's better than bad, it's good."
-          :manufacturer "Blammo Toy Company"}
-         
-         {:id :q36
-          :name "Illudium Q-36 explosive space modulator"
-          :img "q36.jpg"
-          :price {:amount 20000 :currency :space-bucks}
-          :description "Planets obstructing your view of Venus? Destroy them with the new explosive space modulator!"
-          :manufacturer "Transgalactic Tools Ltd"
-          :reviews []}]))
+(defonce products (let [p (atom nil)]
+                    (go (reset! p (<! (api/list-products))))
+                    p))
+
 
 (defonce selected-product (atom nil))
 (defonce selected-product-tab (atom 0))
@@ -76,18 +41,11 @@
                                          assoc :manufacturer "FOO"))
                  2000))
 
-(defmulti format-price :currency)
-(defmethod format-price :eur [p]
-  (let [amount (:amount p)
-        eur (int (/ amount 100))
-        cents (rem amount 100)]
-    (str eur (if (> cents 0)
-               (str "," cents))
-         " \u20AC")))
-(defmethod format-price :pieces-of-eight [p]
-  (str (:amount p) " Pieces o' Eight"))
-(defmethod format-price :space-bucks [p]
-  (str "S$ " (:amount p)))
+
+(defn format-price [amount]
+  (if amount
+    (str (.toFixed amount 2) " \u20AC")
+    ""))
 
 (defn products-list [products]
   [:table.table
@@ -107,10 +65,11 @@
         (let [stars (map :stars (:reviews product))
               avg (/ (reduce + 0 stars) (count stars))]
           [:td 
-           (if (empty? stars)
-             "No reviews"
-             (repeat (Math/round avg)
-                     [:span.glyphicon.glyphicon-star {:aria-hidden "true"}]))])]))])
+           (if-let [avg (:average_rating product)]
+             (for [s (range 0 (Math/round (:average_rating product)))]
+               ^{:key s}
+               [:span.glyphicon.glyphicon-star {:aria-hidden "true"}])
+             "No reviews")])]))])
 
 
 (defn product-details-view []
@@ -130,38 +89,59 @@
 (defn product-gallery-view []
   [:img {:src (str "img/" (:img @selected-product))}])
 
-(defn review-form [new-review]
-  [:form {:role "form"}
-   [:div.form-group
-    [:label {:for "reviewName"} "Name"]
-    [:input#reviewName.form-control
-     {:type "text"
-      :on-change #(swap! new-review assoc :name (-> % .-target .-value))}]
-    [:label.control-label {:for "reviewEmail"} "Email"]
-    [:input#reviewEmail.form-control
-     {:type "email"
-      :on-change #(swap! new-review assoc :email (-> % .-target .-value))}]
-    [:label {:for "reviewStars"} "Stars"]
-    [:div#reviewStars
-     (let [stars (or (:stars @new-review) 0)
-           rate #(swap! new-review assoc :stars %)]
-       (for [i (range 5)]
-         (if (> stars i)
-           [:span.glyphicon.glyphicon-star
-            {:aria-hidden "true" :on-click #(rate (+ i 1))}]
-           [:span.glyphicon.glyphicon-star-empty
-            {:aria-hidden "true" :on-click #(rate (+ i 1))}])))]
 
-    [:label {:for "reviewText"} "Review"]
-    [:textarea#reviewText.form-control
-     {:on-change #(swap! new-review assoc :review (-> % .-target .-value))}]
-    [:button.btn.btn-default
-     {:type "button"
-      :on-click #(do (update-product! (:id @selected-product)
-                                      update-in [:reviews] conj @new-review)
-                     (reset! new-review nil))}
-     "Submit review"]
-    ]])
+;; Holds the reviews of the currently selected product
+;; whenever product is changed, the data is re-fetched from the server
+(defonce reviews (let [reviews (atom nil)]
+                   (run!
+                    (let [product @selected-product]
+                      (reset! reviews nil)
+                      (go (reset! reviews
+                                  (<! (api/list-product-reviews (:id product)))))))
+                   reviews))
+
+(defn review-form [new-review]
+  (let [saving? (atom false)]
+    (fn [new-review]
+      [:form {:role "form"}
+       [:div.form-group
+        [:label {:for "reviewName"} "Name"]
+        [:input#reviewName.form-control
+         {:type "text"
+          :on-change #(swap! new-review assoc :customer_name (-> % .-target .-value))}]
+        [:label.control-label {:for "reviewEmail"} "Email"]
+        [:input#reviewEmail.form-control
+         {:type "email"
+          :on-change #(swap! new-review assoc :customer_email (-> % .-target .-value))}]
+        [:label {:for "reviewStars"} "Stars"]
+        [:div#reviewStars
+         (let [stars (or (:stars @new-review) 0)
+               rate #(swap! new-review assoc :stars %)]
+           (for [i (range 5)]
+             (if (> stars i)
+               ^{:key i}
+               [:span.glyphicon.glyphicon-star
+                {:aria-hidden "true" :on-click #(rate (+ i 1))}]
+               ^{:key i}
+               [:span.glyphicon.glyphicon-star-empty
+                {:aria-hidden "true" :on-click #(rate (+ i 1))}])))]
+
+        [:label {:for "reviewText"} "Review"]
+        [:textarea#reviewText.form-control
+         {:on-change #(swap! new-review assoc :review (-> % .-target .-value))}]
+        [:button.btn.btn-default
+         {:type "button"
+          :disabled @saving?
+          :on-click #(do (reset! saving? true)
+                         (go (when (<! (api/save-review (:id @selected-product)
+                                                        @new-review))
+                               ;; save success, add new review to local view
+                               (swap! reviews conj @new-review)
+                               (reset! new-review nil))
+                             (reset! saving? false)))}
+         "Submit review"]
+        ]])))
+
 
 
 (defn product-reviews-view []
@@ -169,16 +149,18 @@
     (add-watch new-review ::log
                (fn [_ _ old new]
                  (.log js/console (pr-str old) " => " (pr-str new))))
+    
     (fn []
-      (let [reviews (:reviews @selected-product)]
+      (let [reviews @reviews]
         [:div.reviews
          (if (empty? reviews)
            [:div.noReviews "No reviews"]
            (for [r reviews]
+             ^{:key (hash r)}
              [:span.review
               [:dl
-               [:dt "reviewer"]
-               [:dd (:name r)]
+               [:dt "Reviewer"]
+               [:dd (:customer_name r)]
                [:dt "Stars"]
                [:dd (:stars r)]
                [:dt "Review"]
@@ -212,5 +194,4 @@
 (defn ^:export start []
   (reagent/render-component [widgetshop] (.getElementById js/document "widgetshop-app")))
 
-(fw/watch-and-reload
-  :jsload-callback (fn [] (start)))
+
