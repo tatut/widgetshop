@@ -1,20 +1,33 @@
 -- name: list-products-by-category
 -- List all products for the given category
-SELECT p.*,
+SELECT p.*, m.name as manufacturer_name,
        (SELECT AVG(stars)
           FROM product_review pr
 	 WHERE pr.product = p.id) as average_rating
   FROM product p
+       JOIN manufacturer m ON p.manufacturer = m.id
        JOIN product_category pc ON (pc.product = p.id AND pc.category = :category)
 
 -- name: list-products
 -- List all products
-SELECT p.*,
+SELECT p.*, m.name as manufacturer_name,
        (SELECT AVG(stars)
           FROM product_review pr
          WHERE pr.product = p.id) as average_rating
   FROM product p
+       JOIN manufacturer m ON p.manufacturer = m.id
 
+-- name: product-by-id
+-- Fetch single product by id
+SELECT p.*, m.name as manufacturer_name,
+       (SELECT AVG(stars)
+          FROM product_review pr
+         WHERE pr.product = p.id) as average_rating
+  FROM product p
+       JOIN manufacturer m ON p.manufacturer = m.id
+ WHERE p.id = :product
+
+	   
 -- name: list-product-reviews
 -- List all reviews for a given product
 SELECT pr.*,

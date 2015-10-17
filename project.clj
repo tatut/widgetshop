@@ -23,7 +23,7 @@
                         :compiler {:optimizations :none
                                    :source-map true
                                    :preamble ["reagent/react.js"]
-                                   :output-to "resources/public/js/compiled/widgetshop.js"
+                                   :output-to "resources/public/js/widgetshop.js"
                                    :output-dir "resources/public/js/compiled/out"}}
                        {:id "prod"
                         :source-paths ["src/cljs"]
@@ -33,6 +33,7 @@
   ;; Server side source 
   :source-paths ["src/clj"]
   :main widgetshop.main
+  :aot :all
   :repl-options {:port 4005}
   
   ;; Make alias "lein build" run the full cljs+clj compilation and produce an uberjar

@@ -10,36 +10,30 @@
                     (go (reset! p (<! (api/list-products))))
                     p))
 
+(defonce selected-product-id (atom nil))
+(defonce selected-product
+  (reaction (let [id @selected-product-id
+                  products @products]
+              (when (and id products)
+                (some #(when (= id (:id %)) %) products)))))
 
-(defonce selected-product (atom nil))
 (defonce selected-product-tab (atom 0))
 
 (defn select-product!
   "Set the selected product and reset product view tab to details."
   [product]
-  (reset! selected-product product)
+  (reset! selected-product-id (:id product))
   (reset! selected-product-tab 0))
 
 (defn update-product! 
   "Update the product with the given id." 
   [product-id update-fn & args]
-  (let [product-index (first (keep-indexed (fn [i p]
-                                             (when (= product-id (:id p))
-                                               i))
-                                           @products))
-        updated-product (nth (swap! products 
-                                    update-in [product-index]
-                                    (fn [p] (apply update-fn p args)))
-                             product-index)]
-    (when (= product-id (:id @selected-product))
-      ;; If this product was selected, reset that too
-      (reset! selected-product updated-product))))
-
-(comment 
-  ;; example of updating a product
-  (js/setTimeout (fn [] (update-product! :q36 
-                                         assoc :manufacturer "FOO"))
-                 2000))
+  (swap! products
+         (fn [products]
+           (mapv (fn [product]
+                   (if (= product-id (:id product))
+                     (apply update-fn product args)
+                     product)) products))))
 
 
 (defn format-price [amount]
@@ -62,18 +56,16 @@
                       "active")}
         [:td (:name product)]
         [:td (format-price (:price product))]
-        (let [stars (map :stars (:reviews product))
-              avg (/ (reduce + 0 stars) (count stars))]
-          [:td 
+        [:td 
            (if-let [avg (:average_rating product)]
              (for [s (range 0 (Math/round (:average_rating product)))]
                ^{:key s}
                [:span.glyphicon.glyphicon-star {:aria-hidden "true"}])
-             "No reviews")])]))])
+             "No reviews")]]))])
 
 
 (defn product-details-view []
-  (let [{:keys [name description price manufacturer]} @selected-product]
+  (let [{:keys [name description price manufacturer_name]} @selected-product]
     [:dl
      [:dt "Name"]
      [:dd name]
@@ -82,7 +74,7 @@
      [:dt "Price"]
      [:dd (format-price price)]
      [:dt "Manufacturer"]
-     [:dd manufacturer]]))
+     [:dd manufacturer_name]]))
 
 
 
@@ -94,10 +86,10 @@
 ;; whenever product is changed, the data is re-fetched from the server
 (defonce reviews (let [reviews (atom nil)]
                    (run!
-                    (let [product @selected-product]
+                    (let [product-id @selected-product-id]
                       (reset! reviews nil)
                       (go (reset! reviews
-                                  (<! (api/list-product-reviews (:id product)))))))
+                                  (<! (api/list-product-reviews product-id))))))
                    reviews))
 
 (defn review-form [new-review]
@@ -133,9 +125,13 @@
          {:type "button"
           :disabled @saving?
           :on-click #(do (reset! saving? true)
-                         (go (when (<! (api/save-review (:id @selected-product)
-                                                        @new-review))
-                               ;; save success, add new review to local view
+                         (go (when-let [p (<! (api/save-review
+                                               (:id @selected-product)
+                                               @new-review))]
+                               (.log js/console "PRODUCT: " (pr-str p))
+                               ;; save success, update product
+                               (update-product! (:id p) (constantly p))
+                               ;; add new review to local view
                                (swap! reviews conj @new-review)
                                (reset! new-review nil))
                              (reset! saving? false)))}

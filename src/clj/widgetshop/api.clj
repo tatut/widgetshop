@@ -35,7 +35,10 @@
                                 :stars stars
                                 :review review}
                                {:connection db})
-      (json-response true))))
+      ;; Return updated product 
+      (json-response
+       (first (product-by-id {:product product-id}
+                             {:connection db}))))))
 
 (defroutes api-routes
   (GET "/products/:category" [category :<< as-int]
