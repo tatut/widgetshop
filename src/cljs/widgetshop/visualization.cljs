@@ -31,6 +31,8 @@
         tooltip (atom nil)] ;; tooltip text
     (add-watch tooltip ::debug (fn [_ _ old new] (.log js/console "NEW: " (pr-str new))))
     (fn [{:keys [width height radius]} items]
+      (.log js/console "PIE: " (pr-str items))
+
       (let [cx (/ width 2)
             cy (/ height 2)
             radius (or radius (- (/ width 2) 6))

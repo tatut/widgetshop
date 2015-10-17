@@ -1,3 +1,6 @@
+-- name: list-categories
+SELECT * FROM category
+
 -- name: list-products-by-category
 -- List all products for the given category
 SELECT p.*, m.name as manufacturer_name,

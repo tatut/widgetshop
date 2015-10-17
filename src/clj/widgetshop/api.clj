@@ -8,6 +8,7 @@
 (defonce ^:private api-db-connection (atom nil))
 
 (defqueries "widgetshop/api/products.sql")
+(defqueries "widgetshop/api/sales.sql")
 
 (defn- json-response [body]
   {:status 200
@@ -41,6 +42,7 @@
                              {:connection db}))))))
 
 (defroutes api-routes
+  ;; Routes for the shop
   (GET "/products/:category" [category :<< as-int]
        (query-as-json list-products-by-category :category category))
   (GET "/products" []
@@ -49,7 +51,15 @@
            (GET "/reviews" []
                 (query-as-json list-product-reviews :p id))
            (POST "/reviews" request
-                 (save-review id (posted-json request)))))
+                 (save-review id (posted-json request))))
+
+  ;; Routes for the sales dashboard
+  (GET "/categories" []
+       (query-as-json list-categories))
+  (GET "/sales" []
+       (query-as-json list-sales))
+  (GET "/sales/:category" [category :<< as-int]
+       (query-as-json list-sales-by-category :category category)))
 
 
 (defn start [db]

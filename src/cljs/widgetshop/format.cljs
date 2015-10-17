@@ -4,7 +4,7 @@
 
 (defn euros [number]
   ;; \u20ac is unicode for the EURO SIGN
-  (str (.toFixed number 2) " \u20ac"))
+  (str (.toLocaleString number 2) " \u20ac"))
 
 (defn percent [number]
   (str (.toFixed number 0) "%"))

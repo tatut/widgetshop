@@ -1,45 +1,60 @@
 (ns widgetshop.sales
   "Widgetshop sales data."
   (:require [reagent.core :refer [atom] :as r]
+            [cljs.core.async :refer [<! >! chan]]
             [widgetshop.format :as fmt]
-            [figwheel.client :as fw]
             [cljs-time.core :as t]
             [cljs-time.coerce :as c]
-            
+            [cljs-time.format :as tf]
+            [widgetshop.api :as api]
             [widgetshop.visualization :as vis]
-            [widgetshop.dummy])
-  (:require-macros [reagent.ratom :refer [reaction run!]]))
+            [clojure.string :as str])
+  (:require-macros [reagent.ratom :refer [reaction run!]]
+                   [cljs.core.async.macros :refer [go]]))
 
-;; This atom holds the complete sales data in vector form
-(defonce sales-data (atom nil))
 
 ;; Distinct categories of all products
-(defonce categories (reaction (frequencies
-                               (map (comp :category :product)
-                                    @sales-data))))
+(defonce categories (let [categories (atom nil)]
+                      (go (reset! categories
+                                  (into {}
+                                        (map (juxt :id identity))
+                                        (<! (api/list-categories)))))
+                      categories))
 
-(defonce selected-category (atom nil))
+(defonce products
+  (let [products (atom nil)]
+    (go
+      (reset! products
+              (into {}
+                    (map (juxt :id identity))
+                    (<! (api/list-products)))))
+    products))
 
-(def filtered-sales-data
-  (reaction (let [all-data @sales-data
-                  category @selected-category]
-              (if (empty? category)
-                all-data
-                (into []
-                      (filter #(= (:category (:product %)) category))
-                      all-data)))))
+(defonce selected-category-id (atom nil))
 
-(defn sale-total [s]
-  (* (:qty s) (:price (:product s))))
+(defn product-name [id]
+  (:name (get @products id)))
 
+(defn category-name [id]
+  (:name (get @categories id)))
+
+(def sales-data
+  (let [sales (atom nil)]
+    (run! (let [category-id @selected-category-id]
+            (go 
+              (reset! sales
+                      (<! (if (str/blank? category-id)
+                            (api/list-sales)
+                            (api/list-sales-by-category category-id)))))))
+    sales))
 
 (def sales-by-month
   (reaction (let [sales (group-by (fn [s]
-                                    (fmt/year-and-month (:date s)))
-                                  @filtered-sales-data)]
+                                    (fmt/year-and-month (:purchase_date s)))
+                                  @sales-data)]
               (into []
                     (map (juxt first
-                               #(reduce + (map sale-total (second %)))))
+                               #(reduce + (map :price (second %)))))
                     (sort-by first (seq sales)))))) 
               
 
@@ -50,30 +65,20 @@
 (def sales-columns
   [
    ;; The date of this sale
-   {:label "Date" :width "12%" :get :date :fmt fmt/date}
+   {:label "Date" :width "12%" :get :purchase_date :fmt fmt/date}
 
    ;; Product is shown as the name of the product
-   {:label "Product" :width "25%" :get :product :fmt :name} 
-
-   ;; Category is inside the product data
-   {:label "Category" :width "10%" :get :product :fmt :category}
+   {:label "Product" :width "25%" :get :product :fmt product-name} 
 
    ;; The quantity of the products sold
-   {:label "Quantity" :width "9%" :get :qty}
+   {:label "Quantity" :width "9%" :get :quantity}
 
    ;; Unit price (formatted as euros)
-   {:label "Unit price" :width "11%" :get #(:price (:product %)) :fmt fmt/euros}
+   {:label "Unit price" :width "11%" :get #(/ (:price %) (:quantity %)) :fmt fmt/euros}
 
    ;; Total price of sale
-   {:label "Total" :width "11%" :get sale-total :fmt fmt/euros}
+   {:label "Total" :width "11%" :get :price :fmt fmt/euros}
 
-   ;; Tax%
-   {:label "Tax%" :width "11%" :get :tax :fmt fmt/percent}
-   
-   ;; Tax amount
-   {:label "Tax" :width "11%"
-    :get #(* (/ (:tax %) 100.0)
-             (* (:qty %) (:price (:product %)))) :fmt fmt/euros}
    ])
 
    
@@ -83,9 +88,10 @@
   [columns item]
   ^{:key (hash item)}
   [:tr
-   (for [{:keys [label get fmt]} columns]
-     ^{:key label}
-     [:td ((or fmt str) (get item))])])
+   (doall
+    (for [{:keys [label get fmt]} columns]
+      ^{:key label}
+      [:td ((or fmt str) (get item))]))])
 
   
 (defn sales-listing
@@ -125,59 +131,57 @@
 
          ;; We have non-empty sales data, output body with rows for each
          [:tbody
-          (for [item data] ;; generate this for each item
-            (sales-row columns item))]))]]])
+          (doall 
+           (for [item data] ;; generate this for each item
+             (sales-row columns item)))]))]]])
 
 (defn category-selection []
-  [:select {:value @selected-category
-            :on-change #(reset! selected-category (-> % .-target .-value))}
+  [:select {:value @selected-category-id
+            :on-change #(reset! selected-category-id (-> % .-target .-value))}
    [:option {:value ""} "All categories"]
-   (for [c (keys @categories)]
-     ^{:key c}
-     [:option {:value c} c])])
+   (for [{:keys [id name]} (vals @categories)]
+     ^{:key id}
+     [:option {:value id} name])])
 
 (defn sales
   "Main component of our sales page"
   []
   [:span.salesPage
    [category-selection]
-   [sales-listing sales-columns @filtered-sales-data]
+   [sales-listing sales-columns @sales-data]
    [:div.salesCount
-     (count @filtered-sales-data) " sales of " (count @sales-data) " shown."]
+    (count @sales-data)
+    " sales worth "
+    (fmt/euros (reduce + (map :price @sales-data)))
+    ]
    
    [vis/bars {:width 500 :height 150
-              :ticks [["50k" 50000]
-                      ["25k" 25000]
+              :ticks [["75k" 75000]
+                      ["50k" 50000]
+                      ["25k" 10000]
                       ["10k" 10000]
                       ["1k" 1000]
                       ["500" 500]]
                        
               :color-fn (fn [[_ value]]
                           (cond
-                           (> value 10000) "green"
-                           (> value 1000) "#FFCC00"
+                           (> value 50000) "green"
+                           (> value 25000) "#FFCC00"
                            :default "red"))}
     @sales-by-month]
-   (when (empty? @selected-category)
+   (when (str/blank? @selected-category-id)
      [vis/pie {:width 200 :height 200 :radius 70}
-      @categories])
+      (into []
+            (map (fn [[category-id sales]]
+                   [(category-name category-id)
+                    (reduce + (map :price sales))]))
+            (seq (group-by :category @sales-data)))])
    ])
 
-(defn generate-dummy-sales []
-  (reset! sales-data
-          (into []
-                (sort-by #(c/to-long (:date %))
-                         (repeatedly 500 widgetshop.dummy/generate)))))
 
 (defn render []
   (r/render [sales] (.getElementById js/document "widgetshop-app")))
 
 (defn ^:export start []
-  (render)
-  ;; Simulate a "slow" server, generate data after 2 seconds
-  (js/setTimeout generate-dummy-sales 2000))
+  (render))
 
-
-
-(fw/watch-and-reload
- :jsload-callback (fn [] (render)))

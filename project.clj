@@ -18,7 +18,7 @@
             [lein-figwheel "0.4.0"]]
 
   :cljsbuild {:builds [{:id "dev"
-                        :figwheel true
+                        :figwheel {:on-jsload "widgetshop.sales/render"}
                         :source-paths ["src/cljs"]
                         :compiler {:optimizations :none
                                    :source-map true
