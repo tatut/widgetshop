@@ -13,13 +13,13 @@
                    [cljs.core.async.macros :refer [go]]))
 
 
-;; Distinct categories of all products
-(defonce categories (let [categories (atom nil)]
-                      (go (reset! categories
-                                  (into {}
-                                        (map (juxt :id identity))
-                                        (<! (api/list-categories)))))
-                      categories))
+(defonce categories
+  (let [categories (atom nil)]
+    (go (reset! categories
+                (into {}
+                      (map (juxt :id identity))
+                      (<! (api/list-categories)))))
+    categories))
 
 (defonce products
   (let [products (atom nil)]
@@ -30,7 +30,7 @@
                     (<! (api/list-products)))))
     products))
 
-(defonce selected-category-id (atom nil))
+(def selected-category-id (atom nil))
 
 (defn product-name [id]
   (:name (get @products id)))
@@ -41,7 +41,7 @@
 (def sales-data
   (let [sales (atom nil)]
     (run! (let [category-id @selected-category-id]
-            (go 
+            (go
               (reset! sales
                       (<! (if (str/blank? category-id)
                             (api/list-sales)
@@ -49,14 +49,14 @@
     sales))
 
 (def sales-by-month
-  (reaction (let [sales (group-by (fn [s]
-                                    (fmt/year-and-month (:purchase_date s)))
-                                  @sales-data)]
-              (into []
-                    (map (juxt first
-                               #(reduce + (map :price (second %)))))
-                    (sort-by first (seq sales)))))) 
-              
+  (reaction
+   (let [sales (group-by (fn [s]
+                           (fmt/year-and-month (:purchase_date s)))
+                         @sales-data)]
+     (into []
+           (map (juxt first
+                      #(reduce + (map :price (second %)))))
+           (sort-by first (seq sales))))))
 
 
 ;; Define the sales data columns from left to right,
@@ -137,10 +137,11 @@
 
 (defn category-selection []
   [:select {:value @selected-category-id
-            :on-change #(reset! selected-category-id (-> % .-target .-value))}
+            :on-change #(reset! selected-category-id
+                                (-> % .-target .-value))}
    [:option {:value ""} "All categories"]
    (for [{:keys [id name]} (vals @categories)]
-     ^{:key id}
+       ^{:key id}
      [:option {:value id} name])])
 
 (defn sales
@@ -154,21 +155,21 @@
     " sales worth "
     (fmt/euros (reduce + (map :price @sales-data)))
     ]
-   
+
    [vis/bars {:width 500 :height 150
               :ticks [["75k" 75000]
                       ["50k" 50000]
-                      ["25k" 10000]
+                      ["25k" 25000]
                       ["10k" 10000]
                       ["1k" 1000]
                       ["500" 500]]
-                       
               :color-fn (fn [[_ value]]
                           (cond
-                           (> value 50000) "green"
-                           (> value 25000) "#FFCC00"
-                           :default "red"))}
+                            (> value 50000) "green"
+                            (> value 25000) "#FFCC00"
+                            :default "red"))}
     @sales-by-month]
+
    (when (str/blank? @selected-category-id)
      [vis/pie {:width 200 :height 200 :radius 70}
       (into []
